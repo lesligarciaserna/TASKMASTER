@@ -1,6 +1,6 @@
 use anchor_lang::prelude::*;
 
-declare_id!("    "); 
+declare_id!("9CNxAzQJLx25zHZ1CX6m7XEyN7UnS8PWqwDXCUojsEB4"); 
 
 #[program]
 pub mod taskmaster {
