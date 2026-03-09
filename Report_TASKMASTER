@@ -1,0 +1,37 @@
+# Reporte Técnico: TASKMASTER Protocol
+
+## 1. Arquitectura de Datos y PDAs
+TASKMASTER utiliza un modelo de **Cuentas Individuales por Tarea**, lo que permite una gestión de memoria granular y evita cuellos de botella en la serialización de datos.
+
+### Estructura de la PDA
+Cada tarea se localiza en una dirección única derivada de:
+- **Semilla de Identificación**: `b"task"` (prefijo constante).
+- **Autoridad**: `owner.key()` (vínculo directo con el creador).
+- **ID Secuencial**: `id.to_le_bytes()` (permite múltiples tareas por usuario).
+
+Este diseño permite que el cliente (Frontend) consulte tareas específicas simplemente conociendo su ID, sin necesidad de descargar una lista completa.
+
+## 2. Gestión de Memoria y Espacio (Account Space)
+Se ha optimizado la cuenta `Task` para un balance ideal entre costo de renta y capacidad de almacenamiento:
+
+| Campo | Tamaño (Bytes) | Justificación Técnica |
+| :--- | :--- | :--- |
+| **Discriminador** | 8 | Requerido por Anchor para identificación de cuenta. |
+| **Owner** | 32 | Pubkey del usuario para validación de firmas. |
+| **ID** | 8 | Entero `u64` para indexación de tareas. |
+| **Description** | 204 | 4 bytes de prefijo + 200 bytes (50 caracteres UTF-8). |
+| **Is Done** | 1 | Estado booleano de la tarea. |
+| **Created At** | 8 | Timestamp `i64` obtenido del reloj nativo de Solana. |
+| **Bump** | 1 | Almacenado para optimizar futuras validaciones. |
+
+**Total: 262 Bytes** (Costo de renta mínimo y predecible).
+
+## 3. Seguridad y Operaciones Atómicas
+El programa garantiza la integridad de la lista de tareas mediante tres pilares:
+
+- **Validación Declarativa**: Uso de `has_one = owner` en actualizaciones, asegurando que solo el creador original pueda modificar o marcar como completada una tarea.
+- **Ciclo de Vida de Cuenta**: Implementación de la instrucción `close = owner`, que permite la eliminación física de la tarea en la blockchain y la recuperación total del SOL depositado en renta.
+- **Integridad de Entrada**: Validaciones mediante `require!` para prevenir descripciones vacías o que excedan el límite de memoria asignado, evitando errores de desbordamiento.
+
+## 4. Eficiencia de Red
+Al no utilizar un vector dinámico (`Vec`) dentro de una sola cuenta, TASKMASTER evita el límite de tamaño de cuenta de Solana (10KB) y permite que un usuario tenga, en teoría, un número ilimitado de tareas distribuidas en diferentes PDAs.
